@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  memberships     Membership[]
+  authoredProblems Problem[]  @relation("ProblemAuthor")
+  createdProblems Problem[]   @relation("ProblemCreator")
+  comments        Comment[]
+  solves          Solve[]
+  ratings         Rating[]
+  drafts          Draft[]
+  images          Image[]
+  translations    Translation[]
+}
+
+model Group {
+  id         String   @id @default(cuid())
+  name       String
+  inviteCode String   @unique
+  createdAt  DateTime @default(now())
+
+  memberships Membership[]
+  problems    Problem[]
+  contests    Contest[]
+  images      Image[]
+}
+
+model Membership {
+  userId    String
+  groupId   String
+  role      String   @default("MEMBER") // ADMIN | MEMBER
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+  @@index([groupId])
+}
+
+model Problem {
+  id          String   @id @default(cuid())
+  groupId     String
+  name        String
+  statement   String
+  solution    String
+  subfield    String   // ALGEBRA | COMBINATORICS | GEOMETRY | NUMBER_THEORY
+  authorId    String?
+  createdById String
+  imageId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  group        Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author       User?          @relation("ProblemAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  createdBy    User           @relation("ProblemCreator", fields: [createdById], references: [id])
+  image        Image?         @relation(fields: [imageId], references: [id], onDelete: SetNull)
+  translations Translation[]
+  comments     Comment[]
+  solves       Solve[]
+  ratings      Rating[]
+  draftSlots   DraftProblem[]
+
+  @@index([groupId])
+}
+
+model Translation {
+  id          String   @id @default(cuid())
+  problemId   String
+  language    String   // e.g. "sv"
+  statement   String
+  solution    String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([problemId, language])
+}
+
+model Image {
+  id           String   @id @default(cuid())
+  groupId      String
+  filename     String
+  mimeType     String
+  data         Bytes
+  size         Int
+  uploadedById String?
+  contestId    String?
+  createdAt    DateTime @default(now())
+
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  uploadedBy User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  contest    Contest? @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  problems   Problem[]
+
+  @@index([groupId])
+  @@index([contestId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  problemId String?
+  contestId String?
+  authorId  String?
+  body      String
+  isSpoiler Boolean  @default(false)
+  isEvent   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  problem Problem? @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  contest Contest? @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  author  User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([problemId])
+  @@index([contestId])
+}
+
+model Solve {
+  userId    String
+  problemId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId])
+  @@index([problemId])
+}
+
+model Rating {
+  userId    String
+  problemId String
+  contestId String
+  kind      String   // NUMBER | TOO_EASY | TOO_HARD | UNKNOWN
+  number    Int?
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@id([userId, problemId, contestId])
+  @@index([problemId])
+  @@index([contestId])
+}
+
+model Contest {
+  id              String   @id @default(cuid())
+  groupId         String
+  name            String
+  position        Int
+  numProblems     Int      @default(6)
+  formatting      String   @default("")
+  problemTemplate String   @default("")
+  solutionTemplate String  @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  group    Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  drafts   Draft[]
+  comments Comment[]
+  ratings  Rating[]
+  images   Image[]
+
+  @@index([groupId])
+}
+
+model Draft {
+  id          String   @id @default(cuid())
+  contestId   String
+  name        String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contest   Contest        @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  createdBy User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  slots     DraftProblem[]
+
+  @@index([contestId])
+}
+
+model DraftProblem {
+  draftId   String
+  position  Int
+  problemId String
+
+  draft   Draft   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([draftId, position])
+  @@index([problemId])
+}

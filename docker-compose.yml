@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # Generate with: openssl rand -hex 32
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      # Set to 1 if you serve over plain http (e.g. on a LAN) instead of https.
+      INSECURE_COOKIES: ${INSECURE_COOKIES:-0}
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app-data:
